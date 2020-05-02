@@ -17,3 +17,7 @@ lint:
 .PHONY: dep
 dep:
 	go mod tidy
+
+.PHONY: clean
+clean:
+	rm -f *.out

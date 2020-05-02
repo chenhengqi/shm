@@ -36,7 +36,7 @@ func newSystemVSharedMemory(size int64, flag int, perm os.FileMode, path string,
 
 	var addr unsafe.Pointer
 
-	id := C.sysv_shm_create(pathname, C.int(projectID), C.size_t(size), C.int(flag), C.int(perm), &addr)
+	id := C.sysv_shm_create(pathname, C.int(projectID), C.size_t(size), C.int(flag), C.mode_t(perm), &addr)
 	if id == -1 {
 		return nil, fmt.Errorf("create System V shared memory failed")
 	}
@@ -57,17 +57,18 @@ func (s *systemVSharedMemory) Read(p []byte) (int, error) {
 		return 0, io.EOF
 	}
 
-	count := int64(len(p))
-	if s.size-s.offset < count {
-		count = s.size - s.offset
+	bytesToRead := int64(len(p))
+	if s.size-s.offset < bytesToRead {
+		bytesToRead = s.size - s.offset
 	}
-	buffer := C.malloc(C.size_t(count))
+
+	buffer := C.malloc(C.size_t(bytesToRead))
 	if buffer == nil {
 		return 0, fmt.Errorf("malloc failed")
 	}
 	defer C.free(buffer)
 
-	bytesRead := C.sysv_shm_read(buffer, s.addr, C.int(s.offset), C.size_t(count))
+	bytesRead := C.sysv_shm_read(buffer, s.addr, C.int(s.offset), C.size_t(bytesToRead))
 	if bytesRead == -1 {
 		return 0, fmt.Errorf("read failed")
 	}
@@ -85,20 +86,22 @@ func (s *systemVSharedMemory) Write(p []byte) (n int, err error) {
 		return 0, io.ErrShortWrite
 	}
 
-	count := int64(len(p))
-	if s.size-s.offset < count {
-		count = s.size - s.offset
+	bytesToWrite := int64(len(p))
+	if s.size-s.offset < bytesToWrite {
+		bytesToWrite = s.size - s.offset
 	}
-	bytesWrite := C.sysv_shm_write(s.addr, C.int(s.offset), unsafe.Pointer(&p[0]), C.size_t(count))
+
+	bytesWrite := C.sysv_shm_write(s.addr, C.int(s.offset), unsafe.Pointer(&p[0]), C.size_t(bytesToWrite))
 	if bytesWrite == -1 {
 		return 0, fmt.Errorf("write failed")
 	}
 
+	n = int(bytesWrite)
 	s.offset += int64(bytesWrite)
 	if int(bytesWrite) < len(p) {
 		err = io.ErrShortWrite
 	}
-	return int(bytesWrite), err
+	return n, err
 }
 
 func (s *systemVSharedMemory) Seek(offset int64, whence int) (int64, error) {

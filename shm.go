@@ -11,13 +11,18 @@ import (
 type SharedMemory interface {
 	io.ReadWriteCloser
 	io.Seeker
+
+	// Fd returns the integer Unix file descriptor of the underlying shared memory object
 	Fd() uintptr
+	// Raw returns the raw pointer to the memory address of the underlying shared memory object
 	Raw() unsafe.Pointer
+	// Size returns size of the shared memory
 	Size() int64
+	// Offset returns current offset of the shared memory
 	Offset() int64
 }
 
-// NewPosix creates POSIX shared memory object
+// NewPosix creates a POSIX shared memory object
 func NewPosix(size int64, flag int, perm os.FileMode) (SharedMemory, error) {
 	return newPosixSharedMemory(size, flag, perm)
 }

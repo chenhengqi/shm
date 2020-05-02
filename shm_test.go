@@ -1,6 +1,7 @@
 package shm
 
 import (
+	"io"
 	"os"
 	"testing"
 )
@@ -8,10 +9,10 @@ import (
 const (
 	size = 1024 * 1024
 	flag = os.O_RDWR | os.O_CREATE | os.O_EXCL
-	perm = 0600
+	perm = 0666
 )
 
-func TestCreatePosixSharedMemory(t *testing.T) {
+func TestPosixSharedMemory(t *testing.T) {
 	mem, err := NewPosix(size, flag, perm)
 	if err != nil {
 		t.Fatal(err)
@@ -28,20 +29,40 @@ func TestCreatePosixSharedMemory(t *testing.T) {
 	if mem.Offset() != 0 {
 		t.Fatal("wrong offset")
 	}
-}
 
-func TestRemovePosixSharedMemory(t *testing.T) {
-	mem, err := NewPosix(size, flag, perm)
+	data := []byte("hello world")
+	n, err := mem.Write(data)
+	if n != len(data) {
+		t.Fatal("short write")
+	}
+	if mem.Offset() != int64(len(data)) {
+		t.Fatal("invalid offset")
+	}
+
+	offset, err := mem.Seek(0, io.SeekStart)
 	if err != nil {
 		t.Fatal(err)
 	}
+	if offset != 0 {
+		t.Fatal("seek failed")
+	}
+
+	buf := make([]byte, len(data))
+	n, err = mem.Read(buf)
+	if n != len(buf) {
+		t.Fatal("read failed")
+	}
+	if string(buf) != string(data) {
+		t.Fatal("read failed")
+	}
+
 	err = mem.Close()
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
-func TestCreateSystemVSharedMemory(t *testing.T) {
+func TestSystemVSharedMemory(t *testing.T) {
 	mem, err := NewSystemVPrivate(size, IPCCreate|IPCExclusive, perm)
 	if err != nil {
 		t.Fatal(err)
@@ -58,15 +79,46 @@ func TestCreateSystemVSharedMemory(t *testing.T) {
 	if mem.Offset() != 0 {
 		t.Fatal("wrong offset")
 	}
-}
 
-func TestRemoveSystemVSharedMemory(t *testing.T) {
-	mem, err := NewSystemVPrivate(size, IPCCreate, perm)
+	data := []byte("hello world")
+	n, err := mem.Write(data)
+	if n != len(data) {
+		t.Fatal("short write")
+	}
+	if mem.Offset() != int64(len(data)) {
+		t.Fatal("invalid offset")
+	}
+
+	offset, err := mem.Seek(0, io.SeekStart)
 	if err != nil {
 		t.Fatal(err)
 	}
+	if offset != 0 {
+		t.Fatal("seek failed")
+	}
+
+	buf := make([]byte, len(data))
+	n, err = mem.Read(buf)
+	if n != len(buf) {
+		t.Fatal("read failed")
+	}
+	if string(buf) != string(data) {
+		t.Fatal("read failed")
+	}
+
 	err = mem.Close()
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestRandomName(t *testing.T) {
+	name1 := randomName()
+	name2 := randomName()
+	if len(name1) != 26 {
+		t.Fatal("unexpected name length")
+	}
+	if name1 == name2 {
+		t.Fatal("same name")
 	}
 }

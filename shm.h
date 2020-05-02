@@ -11,7 +11,7 @@ int64_t posix_shm_seek(int fd, off_t offset, int whence);
 int posix_shm_read(int fd, void* buf, size_t count);
 int posix_shm_write(int fd, void* buf, size_t count);
 
-int sysv_shm_create(const char *pathname, int proj_id, size_t size, int flag, int mode, void** addr);
+int sysv_shm_create(const char *pathname, int proj_id, size_t size, int flag, mode_t mode, void** addr);
 int sysv_shm_remove(int shmid, void* addr);
 int sysv_shm_read(void* dest, void* src, int offset, size_t count);
 int sysv_shm_write(void* dest, int offset, void* src, size_t count);
