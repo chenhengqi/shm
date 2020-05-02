@@ -8,14 +8,12 @@ import (
 
 // SharedMemory is the interface that wraps the common shared memory operations.
 type SharedMemory interface {
-	io.Reader
-	io.Writer
+	io.ReadWriteCloser
 	io.Seeker
-	io.Closer
-	Raw() unsafe.Pointer
-	Offset() int64
-	Rewind()
 	Fd() uintptr
+	Raw() unsafe.Pointer
+	Size() int64
+	Offset() int64
 }
 
 // NewPosix creates POSIX shared memory object
