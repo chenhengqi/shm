@@ -130,9 +130,9 @@ func (s *posixSharedMemory) Close() error {
 	shmName := C.CString(s.name)
 	defer C.free(unsafe.Pointer(shmName))
 
-	code := C.posix_shm_destroy(shmName, s.addr, C.size_t(size))
+	code := C.posix_shm_remove(shmName, s.addr, C.size_t(size))
 	if code == -1 {
-		return fmt.Errorf("destroy POSIX shared memory failed")
+		return fmt.Errorf("remove POSIX shared memory failed")
 	}
 	return nil
 }
