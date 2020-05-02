@@ -4,6 +4,8 @@ package shm
 
 // #include "shm.h"
 // #include <stdlib.h>
+// #cgo CFLAGS: -Wall
+// #cgo linux LDFLAGS: -lrt
 import "C"
 import (
 	"fmt"
@@ -31,7 +33,7 @@ func newPosixSharedMemory(size int64, flag int, perm os.FileMode) (*posixSharedM
 
 	var addr unsafe.Pointer
 
-	fd := C.posix_create_shm(shmName, C.int(flag), C.mode_t(perm), C.off_t(size), &addr)
+	fd := C.posix_shm_create(shmName, C.int(flag), C.mode_t(perm), C.off_t(size), &addr)
 	if fd == -1 {
 		return nil, fmt.Errorf("create POSIX shared memory failed")
 	}
@@ -45,12 +47,56 @@ func newPosixSharedMemory(size int64, flag int, perm os.FileMode) (*posixSharedM
 	}, nil
 }
 
-func (s *posixSharedMemory) Read(p []byte) (n int, err error) {
-	return 0, nil
+func (s *posixSharedMemory) Read(p []byte) (int, error) {
+	if s.offset >= s.size {
+		if len(p) == 0 {
+			return 0, nil
+		}
+		return 0, io.EOF
+	}
+
+	count := int64(len(p))
+	if s.size-s.offset < count {
+		count = s.size - s.offset
+	}
+	buffer := C.malloc(C.size_t(count))
+	if buffer == nil {
+		return 0, fmt.Errorf("malloc failed")
+	}
+	defer C.free(buffer)
+
+	bytesRead := C.posix_shm_read(C.int(s.fd), buffer, C.size_t(count))
+	if bytesRead == -1 {
+		return 0, fmt.Errorf("read failed")
+	}
+
+	copy(p, C.GoBytes(buffer, C.int(bytesRead)))
+	s.offset += int64(bytesRead)
+	return int(bytesRead), nil
 }
 
 func (s *posixSharedMemory) Write(p []byte) (n int, err error) {
-	return 0, nil
+	if s.offset >= s.size {
+		if len(p) == 0 {
+			return 0, nil
+		}
+		return 0, io.ErrShortWrite
+	}
+
+	count := int64(len(p))
+	if s.size-s.offset < count {
+		count = s.size - s.offset
+	}
+	bytesWrite := C.posix_shm_write(C.int(s.fd), unsafe.Pointer(&p[0]), C.size_t(count))
+	if bytesWrite == -1 {
+		return 0, fmt.Errorf("write failed")
+	}
+
+	s.offset += int64(bytesWrite)
+	if int(bytesWrite) < len(p) {
+		err = io.ErrShortWrite
+	}
+	return int(bytesWrite), err
 }
 
 // see lseek(2)
@@ -71,6 +117,11 @@ func (s *posixSharedMemory) Seek(offset int64, whence int) (int64, error) {
 		return 0, fmt.Errorf("offset out of range")
 	}
 
+	seekOffset := C.posix_shm_seek(C.int(s.fd), C.off_t(newOffset), C.int(whence))
+	if seekOffset == -1 {
+		return 0, fmt.Errorf("lseek failed")
+	}
+
 	s.offset = newOffset
 	return s.offset, nil
 }
@@ -79,7 +130,7 @@ func (s *posixSharedMemory) Close() error {
 	shmName := C.CString(s.name)
 	defer C.free(unsafe.Pointer(shmName))
 
-	code := C.posix_destroy_shm(shmName, s.addr, C.size_t(size))
+	code := C.posix_shm_destroy(shmName, s.addr, C.size_t(size))
 	if code == -1 {
 		return fmt.Errorf("destroy POSIX shared memory failed")
 	}
