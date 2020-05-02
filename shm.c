@@ -1,5 +1,6 @@
 #include "shm.h"
 
+#include <string.h>
 #include <unistd.h>
 #include <sys/mman.h>
 #include <fcntl.h>
@@ -23,7 +24,7 @@ int posix_shm_create(const char* name, int flag, mode_t mode, off_t length, void
     return fd;
 }
 
-int posix_shm_destroy(const char* name, void *addr, size_t length) {
+int posix_shm_remove(const char* name, void *addr, size_t length) {
     int code = munmap(addr, length);
     if (code == -1) {
         return -1;
@@ -46,4 +47,47 @@ int posix_shm_read(int fd, void* buf, size_t count) {
 
 int posix_shm_write(int fd, void* buf, size_t count) {
     return write(fd, buf, count);
+}
+
+#include <stdio.h>
+
+int sysv_shm_create(const char *pathname, int proj_id, size_t size, int flag, int mode, void** addr) {
+    key_t key = IPC_PRIVATE;
+    if (proj_id != 0) {
+        key = ftok(pathname, proj_id);
+    }
+    int id = shmget(key, size, flag | mode);
+    if (id == -1) {
+        perror("shmget");
+        return -1;
+    }
+
+    void* shm_addr = shmat(id, NULL, 0);
+    if (shm_addr == (void*)-1) {
+        perror("shmat");
+        return -1;
+    }
+
+    *addr = shm_addr;
+    return id;
+}
+
+int sysv_shm_remove(int shmid, void* addr) {
+    int code = shmdt(addr);
+    if (code == -1) {
+        return -1;
+    }
+    return shmctl(shmid, IPC_RMID, NULL);
+}
+
+int sysv_shm_read(void* dest, void* src, int offset, size_t count) {
+    char* addr = (char*)src;
+    memcpy(dest, addr + offset, count);
+    return count;
+}
+
+int sysv_shm_write(void* dest, int offset, void* src, size_t count) {
+    char* addr = (char*)dest;
+    memcpy(addr + offset, src, count);
+    return count;
 }
